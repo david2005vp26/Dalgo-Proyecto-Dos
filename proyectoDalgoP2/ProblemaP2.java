@@ -1,124 +1,135 @@
+import java.io.*;
 import java.util.*;
 
 public class ProblemaP2 {
 
-    static class Estado implements Comparable<Estado> {
-        int posicion;
-        int energia;
-        int acciones;
-        List<String> ruta;
+    static class Estado {
+        int pos;            
+        int energia;        
+        List<String> acciones;
+        int pasos;          
 
-        Estado(int posicion, int energia, int acciones, List<String> ruta) {
-            this.posicion = posicion;
+        Estado(int pos, int energia, List<String> acciones, int pasos) {
+            this.pos = pos;
             this.energia = energia;
             this.acciones = acciones;
-            this.ruta = ruta;
-        }
-
-        @Override
-        public int compareTo(Estado otro) {
-            return Integer.compare(this.acciones, otro.acciones);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(posicion, energia);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (!(obj instanceof Estado)) return false;
-            Estado o = (Estado) obj;
-            return this.posicion == o.posicion && this.energia == o.energia;
+            this.pasos = pasos;
         }
     }
 
-    public static String resolverCaso(int n, int e, Set<Integer> robots, Map<Integer, Integer> poderes) {
-        PriorityQueue<Estado> cola = new PriorityQueue<>();
-        Set<String> visitados = new HashSet<>();
+    public static void main(String[] args) throws IOException {
 
-        cola.add(new Estado(0, e, 0, new ArrayList<>()));
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 
-        while (!cola.isEmpty()) {
-            Estado actual = cola.poll();
-            int pos = actual.posicion;
-            int energia = actual.energia;
-            int acciones = actual.acciones;
-            List<String> ruta = actual.ruta;
+        String linea = br.readLine();
+        if (linea == null) return;
+        int numero_casos = Integer.parseInt(linea.trim());
 
-            if (pos == n) {
-                return acciones + " " + String.join(" ", ruta);
+        for (int caso = 0; caso < numero_casos; caso++) {
+
+            do { linea = br.readLine(); }
+            while (linea != null && linea.trim().isEmpty());
+            if (linea == null) break;
+            String[] ne = linea.trim().split("\\s+");
+            int n = Integer.parseInt(ne[0]);     // Numero de plataformas
+            int e = Integer.parseInt(ne[1]);     // Energia inicial
+
+            // Leer plataformas con robots
+            
+            linea = br.readLine();
+            Set<Integer> robots = new HashSet<>();
+            if (linea != null && !linea.trim().isEmpty()) {
+                for (String s : linea.trim().split("\\s+"))
+                    robots.add(Integer.parseInt(s));
             }
 
-            String claveEstado = pos + "-" + energia;
-            if (visitados.contains(claveEstado)) continue;
-            visitados.add(claveEstado);
-
-            // Caminar (adelante y atrás)
-            for (int d = -1; d <= 1; d += 2) {
-                int nuevo = pos + d;
-                if (nuevo >= 0 && nuevo <= n && !robots.contains(nuevo)) {
-                    List<String> nuevaRuta = new ArrayList<>(ruta);
-                    nuevaRuta.add(d == 1 ? "C+" : "C-");
-                    cola.add(new Estado(nuevo, energia, acciones + 1, nuevaRuta));
+            // Leer poderes de salto (Plataforma/Salto)
+            
+            linea = br.readLine();
+            Map<Integer,Integer> poderes = new HashMap<>();
+            if (linea != null && !linea.trim().isEmpty()) {
+                String[] ps = linea.trim().split("\\s+");
+                for (int i = 0; i + 1 < ps.length; i += 2) {
+                    int pi = Integer.parseInt(ps[i]);
+                    int si = Integer.parseInt(ps[i+1]);
+                    poderes.put(pi, si);
                 }
             }
 
-            // Saltar con poder
-            if (poderes.containsKey(pos)) {
-                int salto = poderes.get(pos);
-                for (int d = -1; d <= 1; d += 2) {
-                    int nuevo = pos + d * salto;
-                    if (nuevo >= 0 && nuevo <= n && !robots.contains(nuevo)) {
-                        List<String> nuevaRuta = new ArrayList<>(ruta);
-                        nuevaRuta.add(d == 1 ? "S+" : "S-");
-                        cola.add(new Estado(nuevo, energia, acciones + 1, nuevaRuta));
+            System.out.println(bfs(n, e, robots, poderes));    // Llamar a la funcion BFS
+        }
+
+        br.close();
+    }
+
+    private static String bfs(int n, int energiaInicial, Set<Integer> robots,Map<Integer,Integer> poderes) {
+
+        int objetivo = n;    // La plataforma objetivo 
+        
+        Map<String, Integer> visitado = new HashMap<>();   // Visitados: (pos, energía) para no repetir
+        
+        Deque<Estado> q = new ArrayDeque<>();
+        q.addLast(new Estado(0, energiaInicial, new ArrayList<>(), 0));
+
+        while (!q.isEmpty()) {
+
+
+            Estado cur = q.removeFirst();
+
+            if (cur.pos == objetivo) {
+                StringBuilder sb = new StringBuilder();
+                sb.append(cur.pasos);
+                for (String accion : cur.acciones) {
+                    sb.append(" ").append(accion);
+                }
+                return sb.toString();
+            }
+
+            
+            String clave = cur.pos + "," + cur.energia;
+            if (visitado.containsKey(clave) && visitado.get(clave) <= cur.pasos) continue;
+            visitado.put(clave, cur.pasos);
+
+
+            // Caminar adelante/atrás
+
+            for (int dir : new int[]{1, -1}) {     // 1: Adelante y -1: Atras
+                int np = cur.pos + dir;
+                if (np >= 1 && np <= n && !robots.contains(np)) {
+                    List<String> na = new ArrayList<>(cur.acciones);
+                    na.add(dir == 1 ? "C+" : "C-");
+                    q.addLast(new Estado(np, cur.energia, na, cur.pasos + 1));
+                }
+            }
+
+            // Saltar si hay poder en la plataforma actual
+
+            if (poderes.containsKey(cur.pos)) {
+                int salto = poderes.get(cur.pos);
+                for (int dir : new int[]{1, -1}) {
+                    int np = cur.pos + (dir * salto);
+                    if (np >= 1 && np <= n && !robots.contains(np)) {
+                        List<String> na = new ArrayList<>(cur.acciones);
+                        na.add(dir == 1 ? "S+" : "S-");
+                        q.addLast(new Estado(np, cur.energia, na, cur.pasos + 1));
                     }
                 }
             }
 
-            // Teletransportarse
-            for (int destino = 0; destino <= n; destino++) {
-                if (destino == pos || robots.contains(destino)) continue;
-                int costo = Math.abs(destino - pos) + 1;
-                if (energia >= costo) {
-                    List<String> nuevaRuta = new ArrayList<>(ruta);
-                    int delta = destino - pos;
-                    nuevaRuta.add("T" + delta);
-                    cola.add(new Estado(destino, energia - costo, acciones + 1, nuevaRuta));
+            // Teletransportarse 
+
+            for (int dest = 1; dest <= n; dest++) {
+                if (dest == cur.pos || robots.contains(dest)) continue;
+                int coste = Math.abs(dest - cur.pos);
+                if (coste <= cur.energia && cur.energia > 0) {
+                    List<String> na = new ArrayList<>(cur.acciones);
+                    int diff = dest - cur.pos;
+                    na.add("T" + String.valueOf(diff));
+                    q.addLast(new Estado(dest, cur.energia - coste, na, cur.pasos + 1));
                 }
             }
         }
 
-        return "NO SE PUEDE";
-    }
-
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        int casos = Integer.parseInt(sc.nextLine());
-
-        for (int c = 0; c < casos; c++) {
-            String[] linea1 = sc.nextLine().split(" ");
-            int n = Integer.parseInt(linea1[0]);
-            int e = Integer.parseInt(linea1[1]);
-
-            Set<Integer> robots = new HashSet<>();
-            String[] linea2 = sc.nextLine().split(" ");
-            for (String s : linea2) {
-                if (!s.isEmpty()) robots.add(Integer.parseInt(s));
-            }
-
-            Map<Integer, Integer> poderes = new HashMap<>();
-            String[] linea3 = sc.nextLine().split(" ");
-            for (int i = 0; i < linea3.length; i += 2) {
-                int pos = Integer.parseInt(linea3[i]);
-                int salto = Integer.parseInt(linea3[i + 1]);
-                poderes.put(pos, salto);
-            }
-
-            System.out.println(resolverCaso(n, e, robots, poderes));
-        }
-
-        sc.close();
+        return "NO SE PUEDE"; // Fin de la cola
     }
 }
